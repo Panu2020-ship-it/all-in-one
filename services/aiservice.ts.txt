@@ -1,0 +1,38 @@
+import { chatGPTService } from './ChatGPTService';
+import { perplexityService } from './PerplexityService';
+import { geminiService } from './GeminiService';
+import { deepSeekService } from './DeepSeekService';
+
+export type Message = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export type AIServiceResponse = {
+  success: boolean;
+  response?: string;
+  error?: string;
+};
+
+export interface IAIService {
+  sendMessage(messages: Message[]): Promise<AIServiceResponse>;
+}
+
+export const callAI = async (
+  model: string,
+  messages: Message[],
+): Promise<AIServiceResponse> => {
+  console.log(`Dispatching to AI model: ${model}`);
+  switch (model) {
+    case 'ChatGPT':
+      return chatGPTService.sendMessage(messages);
+    case 'Perplexity':
+      return perplexityService.sendMessage(messages);
+    case 'Gemini':
+      return geminiService.sendMessage(messages);
+    case 'DeepSeek':
+      return deepSeekService.sendMessage(messages);
+    default:
+      return { success: false, error: `AI model ${model} not supported.` };
+  }
+};
