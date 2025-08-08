@@ -1,0 +1,195 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { callAI, Message } from '../services/aiService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const ACTIVE_MODEL_STORAGE_KEY = '@all_ai_desk_active_model';
+
+const TextScreen = () => {
+  const [message, setMessage] = useState('');
+  const [conversation, setConversation] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [activeModel, setActiveModel] = useState('ChatGPT'); // Default to ChatGPT
+
+  useEffect(() => {
+    const fetchActiveModel = async () => {
+      const storedActiveModel = await AsyncStorage.getItem(ACTIVE_MODEL_STORAGE_KEY);
+      if (storedActiveModel) {
+        setActiveModel(storedActiveModel);
+      }
+    };
+    fetchActiveModel();
+  }, []);
+
+  const handleSendMessage = async () => {
+    if (message.trim()) {
+      const userMessage: Message = { role: 'user', content: message.trim() };
+      setConversation(prev => [...prev, userMessage]);
+      setMessage('');
+      setLoading(true);
+
+      try {
+        const aiResponse = await callAI(activeModel, [...conversation, userMessage]);
+        if (aiResponse.success && aiResponse.response) {
+          setConversation(prev => [...prev, { role: 'assistant', content: aiResponse.response! }]);
+        } else {
+          setConversation(prev => [...prev, { role: 'assistant', content: `Error: ${aiResponse.error || 'Unknown error'}` }]);
+        }
+      } catch (error) {
+        console.error('Error calling AI:', error);
+        setConversation(prev => [...prev, { role: 'assistant', content: 'An unexpected error occurred.' }]);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const modelOptions = ['ChatGPT', 'Perplexity', 'Gemini', 'DeepSeek'];
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      {/* Model selector */}
+      <View style={styles.modelPickerContainer}>
+        <Picker
+          selectedValue={activeModel}
+          onValueChange={async (value) => {
+            setActiveModel(value);
+            await AsyncStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, value);
+          }}
+          style={styles.picker}
+          dropdownIconColor="#fff"
+        >
+          {modelOptions.map((m) => (
+            <Picker.Item key={m} label={m} value={m} color="#fff" />
+          ))}
+        </Picker>
+      </View>
+
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      >
+        <ScrollView contentContainerStyle={styles.conversationContainer}>
+          {conversation.map((msg, index) => (
+            <View key={index} style={msg.role === 'user' ? styles.userMessage : styles.aiMessage}>
+              <Text style={msg.role === 'user' ? styles.userText : styles.aiText}>
+                {msg.content}
+              </Text>
+            </View>
+          ))}
+          {loading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#007AFF" />
+              <Text style={styles.loadingText}>AI is thinking...</Text>
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.textInput}
+            value={message}
+            onChangeText={setMessage}
+            placeholder={`Type your message to ${activeModel}...`}
+            placeholderTextColor="#888"
+            multiline
+            editable={!loading}
+          />
+          <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.sendButtonText}>Send</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#121212',
+  },
+  conversationContainer: {
+    flexGrow: 1,
+    padding: 10,
+    justifyContent: 'flex-end',
+  },
+  userMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    maxWidth: '80%',
+  },
+  aiMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#333',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    maxWidth: '80%',
+  },
+  userText: {
+    color: '#fff',
+  },
+  aiText: {
+    color: '#fff',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    padding: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    alignItems: 'center',
+  },
+  textInput: {
+    flex: 1,
+    backgroundColor: '#282828',
+    color: '#fff',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginRight: 10,
+    maxHeight: 100,
+  },
+  sendButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    backgroundColor: '#333',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    maxWidth: '80%',
+  },
+  loadingText: {
+    color: '#fff',
+    marginLeft: 10,
+  },
+});
+
+export default TextScreen;

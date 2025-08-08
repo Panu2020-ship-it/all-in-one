@@ -1,0 +1,153 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Button, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { pdfAIService } from '../services/PdfAIService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const ACTIVE_MODEL_STORAGE_KEY = '@all_ai_desk_active_model';
+
+const PDFScreen = () => {
+  const [selectedPdfUri, setSelectedPdfUri] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [activeModel, setActiveModel] = useState('ChatGPT'); // Default active model
+
+  useEffect(() => {
+    const fetchActiveModel = async () => {
+      const storedActiveModel = await AsyncStorage.getItem(ACTIVE_MODEL_STORAGE_KEY);
+      if (storedActiveModel) {
+        setActiveModel(storedActiveModel);
+      }
+    };
+    fetchActiveModel();
+  }, []);
+
+  const pickPdf = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled) {
+        setSelectedPdfUri(result.assets[0].uri);
+        setAiResponse(null); // Clear previous AI response
+      }
+    } catch (err) {
+      console.error('Error picking PDF:', err);
+      Alert.alert('Error', 'Failed to pick PDF file.');
+    }
+  };
+
+  const handleAnalyzePdf = async () => {
+    if (!selectedPdfUri) {
+      Alert.alert('No PDF', 'Please select a PDF file first.');
+      return;
+    }
+
+    setLoading(true);
+    setAiResponse(null);
+
+    try {
+      const response = await pdfAIService.analyzePdf(selectedPdfUri, activeModel);
+      if (response.success && response.response) {
+        setAiResponse(response.response);
+      } else {
+        setAiResponse(`Error: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error analyzing PDF:', error);
+      setAiResponse('An unexpected error occurred during analysis.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>PDF AI Analysis ({activeModel})</Text>
+
+        <Button title="Pick a PDF file" onPress={pickPdf} color="#007AFF" />
+
+        {selectedPdfUri && (
+          <View style={styles.pdfInfoContainer}>
+            <Text style={styles.pdfName}>Selected PDF: {selectedPdfUri.split('/').pop()}</Text>
+            <Button
+              title={loading ? "Analyzing..." : `Analyze PDF with ${activeModel}`}
+              onPress={handleAnalyzePdf}
+              color="#007AFF"
+              disabled={loading}
+            />
+          </View>
+        )}
+
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Analyzing PDF...</Text>
+          </View>
+        )}
+
+        {aiResponse && (
+          <View style={styles.responseContainer}>
+            <Text style={styles.responseText}>{aiResponse}</Text>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  container: {
+    flexGrow: 1,
+    backgroundColor: '#121212',
+    padding: 20,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  pdfInfoContainer: {
+    marginTop: 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  pdfName: {
+    color: '#fff',
+    fontSize: 16,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#fff',
+    marginTop: 10,
+  },
+  responseContainer: {
+    marginTop: 20,
+    backgroundColor: '#333',
+    borderRadius: 10,
+    padding: 15,
+    width: '100%',
+  },
+  responseText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+});
+
+export default PDFScreen;

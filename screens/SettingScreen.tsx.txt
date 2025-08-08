@@ -1,0 +1,178 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, StyleSheet, ScrollView, Button, Alert } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import { saveApiKeys, loadApiKeys, saveBackendUrl, loadBackendUrl } from '../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const ACTIVE_MODEL_STORAGE_KEY = '@all_ai_desk_active_model';
+
+const SettingsScreen = () => {
+  const [backendUrl, setBackendUrl] = useState('');
+  const [chatGPTKey, setChatGPTKey] = useState('');
+  const [perplexityKey, setPerplexityKey] = useState('');
+  const [geminiKey, setGeminiKey] = useState('');
+  const [deepSeekKey, setDeepSeekKey] = useState('');
+  const [activeModel, setActiveModel] = useState('ChatGPT'); // Default active model
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const storedKeys = await loadApiKeys();
+      if (storedKeys) {
+        setChatGPTKey(storedKeys.chatGPTKey || '');
+        setPerplexityKey(storedKeys.perplexityKey || '');
+        setGeminiKey(storedKeys.geminiKey || '');
+        setDeepSeekKey(storedKeys.deepSeekKey || '');
+      }
+      const storedActiveModel = await AsyncStorage.getItem(ACTIVE_MODEL_STORAGE_KEY);
+      if (storedActiveModel) {
+        setActiveModel(storedActiveModel);
+      }
+      const storedBackend = await loadBackendUrl();
+      if (storedBackend) setBackendUrl(storedBackend);
+    };
+    fetchSettings();
+  }, []);
+
+  const handleSaveSettings = async () => {
+    await saveApiKeys({
+      chatGPTKey,
+      perplexityKey,
+      geminiKey,
+      deepSeekKey,
+    });
+    await AsyncStorage.setItem(ACTIVE_MODEL_STORAGE_KEY, activeModel);
+    await saveBackendUrl(backendUrl);
+    Alert.alert('Settings Saved', 'API keys and active model have been saved successfully!');
+  };
+
+  return (
+    <ScrollView style={styles.container}>
+      <Text style={styles.title}>App Settings</Text>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Backend URL:</Text>
+        <TextInput
+          style={styles.input}
+          value={backendUrl}
+          onChangeText={setBackendUrl}
+          placeholder="e.g. http://192.168.1.10:3000"
+          placeholderTextColor="#888"
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Active AI Model:</Text>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={activeModel}
+            onValueChange={(itemValue) => setActiveModel(itemValue as string)}
+            style={styles.picker}
+            itemStyle={styles.pickerItem}
+          >
+            <Picker.Item label="ChatGPT" value="ChatGPT" />
+            <Picker.Item label="Perplexity AI" value="Perplexity" />
+            <Picker.Item label="Gemini" value="Gemini" />
+            <Picker.Item label="DeepSeek AI" value="DeepSeek" />
+          </Picker>
+        </View>
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>ChatGPT API Key:</Text>
+        <TextInput
+          style={styles.input}
+          value={chatGPTKey}
+          onChangeText={setChatGPTKey}
+          placeholder="Enter your ChatGPT API Key"
+          placeholderTextColor="#888"
+          secureTextEntry
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Perplexity AI API Key:</Text>
+        <TextInput
+          style={styles.input}
+          value={perplexityKey}
+          onChangeText={setPerplexityKey}
+          placeholder="Enter your Perplexity AI API Key"
+          placeholderTextColor="#888"
+          secureTextEntry
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Gemini API Key:</Text>
+        <TextInput
+          style={styles.input}
+          value={geminiKey}
+          onChangeText={setGeminiKey}
+          placeholder="Enter your Gemini API Key"
+          placeholderTextColor="#888"
+          secureTextEntry
+        />
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>DeepSeek AI API Key:</Text>
+        <TextInput
+          style={styles.input}
+          value={deepSeekKey}
+          onChangeText={setDeepSeekKey}
+          placeholder="Enter your DeepSeek AI API Key"
+          placeholderTextColor="#888"
+          secureTextEntry
+        />
+      </View>
+
+      <Button title="Save Settings" onPress={handleSaveSettings} color="#007AFF" />
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#121212',
+    padding: 20,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 16,
+    color: '#ccc',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#282828',
+    color: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#3a3a3a',
+  },
+  pickerContainer: {
+    backgroundColor: '#282828',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3a3a3a',
+    overflow: 'hidden',
+  },
+  picker: {
+    color: '#fff',
+  },
+  pickerItem: {
+    color: '#fff',
+  },
+});
+
+export default SettingsScreen;

@@ -1,0 +1,157 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Button, Image, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { imageAIService } from '../services/ImageAIService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const ACTIVE_MODEL_STORAGE_KEY = '@all_ai_desk_active_model';
+
+const ImageScreen = () => {
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [activeModel, setActiveModel] = useState('ChatGPT'); // Default active model
+
+  useEffect(() => {
+    const fetchActiveModel = async () => {
+      const storedActiveModel = await AsyncStorage.getItem(ACTIVE_MODEL_STORAGE_KEY);
+      if (storedActiveModel) {
+        setActiveModel(storedActiveModel);
+      }
+    };
+    fetchActiveModel();
+  }, []);
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please grant media library permissions to select an image.');
+      return;
+    }
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setSelectedImage(result.assets[0].uri);
+      setAiResponse(null); // Clear previous AI response
+    }
+  };
+
+  const handleAnalyzeImage = async () => {
+    if (!selectedImage) {
+      Alert.alert('No Image', 'Please select an image first.');
+      return;
+    }
+
+    setLoading(true);
+    setAiResponse(null);
+
+    try {
+      const response = await imageAIService.analyzeImage(selectedImage, activeModel);
+      if (response.success && response.response) {
+        setAiResponse(response.response);
+      } else {
+        setAiResponse(`Error: ${response.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      setAiResponse('An unexpected error occurred during analysis.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Image AI Analysis ({activeModel})</Text>
+
+        <Button title="Pick an image from gallery" onPress={pickImage} color="#007AFF" />
+
+        {selectedImage && (
+          <View style={styles.imageContainer}>
+            <Image source={{ uri: selectedImage }} style={styles.image} />
+            <Button
+              title={loading ? "Analyzing..." : `Analyze Image with ${activeModel}`}
+              onPress={handleAnalyzeImage}
+              color="#007AFF"
+              disabled={loading}
+            />
+          </View>
+        )}
+
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
+            <Text style={styles.loadingText}>Analyzing image...</Text>
+          </View>
+        )}
+
+        {aiResponse && (
+          <View style={styles.responseContainer}>
+            <Text style={styles.responseText}>{aiResponse}</Text>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  container: {
+    flexGrow: 1,
+    backgroundColor: '#121212',
+    padding: 20,
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  imageContainer: {
+    marginTop: 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  image: {
+    width: 300,
+    height: 200,
+    resizeMode: 'contain',
+    borderRadius: 10,
+    marginBottom: 20,
+  },
+  loadingContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#fff',
+    marginTop: 10,
+  },
+  responseContainer: {
+    marginTop: 20,
+    backgroundColor: '#333',
+    borderRadius: 10,
+    padding: 15,
+    width: '100%',
+  },
+  responseText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+});
+
+export default ImageScreen;
